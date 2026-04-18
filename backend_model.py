@@ -50,6 +50,9 @@ THRESHOLD_PATH = os.path.join(BASE_DIR, "prediction_threshold.pkl")
 EVOLUTION_PLOT_PATH = os.path.join(BASE_DIR, "evolution_performance.png")
 EVOLUTION_JSON_PATH = os.path.join(BASE_DIR, "evolution_metrics.json")
 
+# Matplotlib viridis at 0, ¼, ½, ¾, 1 (same order as Accuracy → ROC-AUC in charts)
+EVOLUTION_VIRIDIS_HEX = ["#440154", "#3b528b", "#21918c", "#5ec962", "#fde725"]
+
 # --- Constants ---
 RANDOM_STATE = 42
 OPTIMIZED_THRESHOLD = 0.42
@@ -224,13 +227,7 @@ def save_evolution_plot(phases: list[dict], path: Optional[str] = None) -> None:
     n_m = len(metric_keys)
     width = min(0.8 / n_m, 0.14)
     fig, ax = plt.subplots(figsize=(10, 6))
-    try:
-        cmap = plt.colormaps["viridis"]
-    except (AttributeError, KeyError):
-        from matplotlib.cm import get_cmap
-
-        cmap = get_cmap("viridis")
-    colors = [cmap(0.12 + 0.72 * i / max(1, n_m - 1)) for i in range(n_m)]
+    colors = EVOLUTION_VIRIDIS_HEX[:n_m]
     for i, (key, lab, c) in enumerate(zip(metric_keys, legend_labels, colors)):
         vals = [float(p[key]) for p in phases]
         offset = (i - (n_m - 1) / 2) * width

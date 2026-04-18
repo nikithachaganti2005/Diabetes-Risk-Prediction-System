@@ -1,11 +1,13 @@
+import { useState, useCallback } from 'react';
 import { EVOLUTION_PREVIEW } from './evolutionPreview';
 
+/** Matplotlib `viridis` at 0, ¼, ½, ¾, 1 — matches slide / export colors */
 const SERIES = [
-  { key: 'accuracy', label: 'Accuracy', color: '#482878' },
-  { key: 'recall', label: 'Recall', color: '#414487' },
-  { key: 'precision', label: 'Precision', color: '#2a788e' },
-  { key: 'f1_score', label: 'F1-Score', color: '#22a884' },
-  { key: 'roc_auc', label: 'ROC-AUC', color: '#7ad151' },
+  { key: 'accuracy', label: 'Accuracy', color: '#440154' },
+  { key: 'recall', label: 'Recall', color: '#3b528b' },
+  { key: 'precision', label: 'Precision', color: '#21918c' },
+  { key: 'f1_score', label: 'F1-Score', color: '#5ec962' },
+  { key: 'roc_auc', label: 'ROC-AUC', color: '#fde725' },
 ];
 
 const PHASE_LINES_SIDEBAR = {
@@ -19,16 +21,33 @@ function phasesForChart(data) {
   return EVOLUTION_PREVIEW.phases;
 }
 
-function showPreviewNote(data) {
-  return Boolean(
-    data?.is_preview ||
-      data?.fallback_reason ||
-      !data?.phases?.length
-  );
+function formatMetricValue(v) {
+  const n = Number(v);
+  if (Number.isNaN(n)) return '—';
+  return n.toFixed(6);
 }
 
 function EvolutionChart({ data, variant = 'default' }) {
   const sidebar = variant === 'sidebar';
+  const [barTip, setBarTip] = useState(null);
+
+  const showBarTip = useCallback((e, metricLabel, phaseLabel, value) => {
+    setBarTip({
+      x: e.clientX,
+      y: e.clientY,
+      metricLabel,
+      phaseLabel,
+      value: Number(value),
+    });
+  }, []);
+
+  const moveBarTip = useCallback((e) => {
+    setBarTip((prev) =>
+      prev ? { ...prev, x: e.clientX, y: e.clientY } : null
+    );
+  }, []);
+
+  const hideBarTip = useCallback(() => setBarTip(null), []);
 
   if (data == null) {
     return (
@@ -62,23 +81,28 @@ function EvolutionChart({ data, variant = 'default' }) {
   const gridYs = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8].filter((g) => g <= yMax + 1e-6);
 
   return (
-    <div className={`evolution-chart${sidebar ? ' evolution-chart--sidebar' : ''}`}>
+    <div
+      className={`evolution-chart${sidebar ? ' evolution-chart--sidebar' : ''}`}
+      onMouseLeave={hideBarTip}
+    >
+      {barTip && (
+        <div
+          className="evolution-chart__tooltip"
+          style={{ left: barTip.x, top: barTip.y }}
+          role="tooltip"
+        >
+          <div className="evolution-chart__tooltip-metric">{barTip.metricLabel}</div>
+          <div className="evolution-chart__tooltip-phase">{barTip.phaseLabel}</div>
+          <div className="evolution-chart__tooltip-value">{formatMetricValue(barTip.value)}</div>
+        </div>
+      )}
       <h3 className="evolution-chart__title">Evolution of Model Performance across Phases</h3>
-      {showPreviewNote(data) && (
-        <p className="evolution-chart__preview-note">
-          Preview — benchmark figure values. For live metrics, run{' '}
-          <code className="evolution-chart__code">python backend_model.py</code> and start the API (
-          <code className="evolution-chart__code">uvicorn api:app --port 8000</code>).
-        </p>
-      )}
-      {(data.optimized_threshold != null || showPreviewNote(data)) && (
-        <p className="evolution-chart__meta">
-          Optimized threshold (Phase 3):{' '}
-          <strong>
-            {Number(data.optimized_threshold ?? EVOLUTION_PREVIEW.optimized_threshold).toFixed(2)}
-          </strong>
-        </p>
-      )}
+      <p className="evolution-chart__meta">
+        Optimized threshold (Phase 3):{' '}
+        <strong>
+          {Number(data.optimized_threshold ?? EVOLUTION_PREVIEW.optimized_threshold).toFixed(2)}
+        </strong>
+      </p>
       <svg
         className="evolution-chart__svg"
         viewBox={`0 0 ${W} ${H}`}
@@ -110,6 +134,7 @@ function EvolutionChart({ data, variant = 'default' }) {
                 const x = gx + (si - (nS - 1) / 2) * barW;
                 const y = toY(v);
                 const h = padT + innerH - y;
+                const phaseTitle = p.label ?? `Phase ${p.phase ?? ''}`;
                 return (
                   <rect
                     key={s.key}
@@ -121,6 +146,10 @@ function EvolutionChart({ data, variant = 'default' }) {
                     stroke="#fff"
                     strokeWidth={0.35}
                     rx={0.5}
+                    className="evolution-chart__bar"
+                    onMouseEnter={(e) => showBarTip(e, s.label, phaseTitle, v)}
+                    onMouseMove={moveBarTip}
+                    aria-label={`${s.label}, ${phaseTitle}, score ${formatMetricValue(v)}`}
                   />
                 );
               })}

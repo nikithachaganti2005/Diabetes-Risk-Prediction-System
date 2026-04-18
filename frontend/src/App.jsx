@@ -396,9 +396,11 @@ function App() {
             </div>
           )}
 
-          <div className="evolution-sidebar" aria-label="Model performance across training phases">
-            <EvolutionChart data={evolutionData} variant="sidebar" />
-          </div>
+          {result && (
+            <div className="evolution-sidebar" aria-label="Model performance across training phases">
+              <EvolutionChart data={evolutionData} variant="sidebar" />
+            </div>
+          )}
         </aside>
       </main>
 

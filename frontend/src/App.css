@@ -373,11 +373,58 @@
 }
 
 .evolution-chart {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.25rem 1.5rem 1rem;
   box-shadow: var(--shadow);
+}
+
+.evolution-chart__tooltip {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  max-width: 16rem;
+  border-radius: 8px;
+  background: var(--text);
+  color: #ffffff;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transform: translate(12px, 12px);
+}
+
+.evolution-chart__tooltip-metric {
+  font-weight: 700;
+  font-size: 0.82rem;
+  margin-bottom: 0.2rem;
+}
+
+.evolution-chart__tooltip-phase {
+  display: block;
+  opacity: 0.88;
+  font-size: 0.72rem;
+  margin-bottom: 0.35rem;
+}
+
+.evolution-chart__tooltip-value {
+  display: block;
+  font-family: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.evolution-chart__bar {
+  cursor: pointer;
+}
+
+.evolution-chart__bar:hover {
+  filter: brightness(1.08);
 }
 
 .evolution-chart--empty {
@@ -390,22 +437,6 @@
   font-weight: 700;
   letter-spacing: -0.02em;
   text-align: center;
-}
-
-.evolution-chart__preview-note {
-  margin: 0 0 0.6rem;
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  text-align: center;
-  line-height: 1.45;
-}
-
-.evolution-chart__code {
-  font-size: 0.68rem;
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
-  background: var(--surface-hover);
-  border: 1px solid var(--border);
 }
 
 .evolution-chart__meta {
@@ -501,15 +532,6 @@
 .evolution-chart--sidebar .evolution-chart__title {
   font-size: 0.92rem;
   margin-bottom: 0.5rem;
-}
-
-.evolution-chart--sidebar .evolution-chart__preview-note {
-  font-size: 0.65rem;
-  margin-bottom: 0.4rem;
-}
-
-.evolution-chart--sidebar .evolution-chart__code {
-  font-size: 0.62rem;
 }
 
 .evolution-chart--sidebar .evolution-chart__meta {
