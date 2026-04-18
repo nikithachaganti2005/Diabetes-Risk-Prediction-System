@@ -4,10 +4,18 @@ FastAPI REST API for Diabetes Risk Prediction.
 Run: uvicorn api:app --reload --port 8000
 """
 
+import json
+import os
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from typing import Optional
+
+_API_DIR = os.path.dirname(os.path.abspath(__file__))
+EVOLUTION_JSON_PATH = os.path.join(_API_DIR, "evolution_metrics.json")
+EVOLUTION_PLOT_PATH = os.path.join(_API_DIR, "evolution_performance.png")
 
 app = FastAPI(
     title="Diabetes Risk Prediction API",
@@ -132,3 +140,26 @@ def metrics():
         "model_type": "Stacking Ensemble (XGBoost + Random Forest + LightGBM)",
         "dataset": "BRFSS 2015 Diabetes Health Indicators",
     }
+
+
+@app.get("/evolution")
+def evolution():
+    """Phase-wise test metrics (after full train via `python backend_model.py`)."""
+    if not os.path.isfile(EVOLUTION_JSON_PATH):
+        return {
+            "generated": False,
+            "phases": [],
+            "hint": "Run `python backend_model.py` to train the full pipeline and generate this chart.",
+        }
+    with open(EVOLUTION_JSON_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+@app.get("/evolution/chart")
+def evolution_chart():
+    if not os.path.isfile(EVOLUTION_PLOT_PATH):
+        raise HTTPException(
+            status_code=404,
+            detail="Chart not found. Run `python backend_model.py` first.",
+        )
+    return FileResponse(EVOLUTION_PLOT_PATH, media_type="image/png")

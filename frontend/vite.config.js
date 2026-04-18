@@ -10,6 +10,7 @@ export default defineConfig({
       '/health': { target: 'http://127.0.0.1:8000', changeOrigin: true },
       '/predict': { target: 'http://127.0.0.1:8000', changeOrigin: true },
       '/metrics': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+      '/evolution': { target: 'http://127.0.0.1:8000', changeOrigin: true },
     },
   },
 })

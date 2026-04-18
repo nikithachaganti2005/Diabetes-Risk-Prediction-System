@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { predict, getHealth, getMetrics } from './api';
+import { predict, getHealth, getMetrics, getEvolution } from './api';
 import { INITIAL_FORM, EDUCATION_OPTIONS, INCOME_OPTIONS, GENHLTH_OPTIONS, ageYearsToBRFSS } from './constants';
+import { EVOLUTION_PREVIEW } from './evolutionPreview';
+import EvolutionChart from './EvolutionChart';
 import './App.css';
 
 function App() {
@@ -12,6 +14,7 @@ function App() {
   const [apiStatus, setApiStatus] = useState(null);
   const [activeSection, setActiveSection] = useState(0);
   const [modelAccuracy, setModelAccuracy] = useState(97);
+  const [evolutionData, setEvolutionData] = useState(null);
 
   useEffect(() => {
     getHealth()
@@ -20,6 +23,9 @@ function App() {
     getMetrics()
       .then((r) => setModelAccuracy(r.model_accuracy ?? 97))
       .catch(() => setModelAccuracy(97));
+    getEvolution()
+      .then((r) => setEvolutionData(r))
+      .catch(() => setEvolutionData(EVOLUTION_PREVIEW));
   }, []);
 
   const update = (key, value) => {
@@ -389,6 +395,10 @@ function App() {
               <p>Your prediction will appear here after you submit the form.</p>
             </div>
           )}
+
+          <div className="evolution-sidebar" aria-label="Model performance across training phases">
+            <EvolutionChart data={evolutionData} variant="sidebar" />
+          </div>
         </aside>
       </main>
 

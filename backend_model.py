@@ -5,8 +5,10 @@ Standalone diabetes risk prediction backend.
 Multi-phase optimization: XGBoost → Stacking Ensemble → Threshold Optimization.
 """
 
+import json
 import os
 import threading
+from datetime import datetime, timezone
 from typing import Optional
 
 import pandas as pd
@@ -45,6 +47,8 @@ DATA_PATH = os.path.join(DATA_DIR, "diabetes_binary_5050split_health_indicators_
 MODEL_PATH = os.path.join(BASE_DIR, "diabetes_model.pkl")
 FEATURE_NAMES_PATH = os.path.join(BASE_DIR, "feature_names.pkl")
 THRESHOLD_PATH = os.path.join(BASE_DIR, "prediction_threshold.pkl")
+EVOLUTION_PLOT_PATH = os.path.join(BASE_DIR, "evolution_performance.png")
+EVOLUTION_JSON_PATH = os.path.join(BASE_DIR, "evolution_metrics.json")
 
 # --- Constants ---
 RANDOM_STATE = 42
@@ -152,6 +156,106 @@ def train_model(X_train, y_train, X_test, y_test, verbose=True):
     stacking_model.fit(X_train, y_train)
 
     return stacking_model, best_model, X_train.columns.tolist()
+
+
+def _metrics_at_threshold(y_true, y_proba, threshold: float) -> dict:
+    yt = np.asarray(y_true)
+    pr = np.asarray(y_proba, dtype=float)
+    y_pred = (pr >= threshold).astype(int)
+    return {
+        "accuracy": float(accuracy_score(yt, y_pred)),
+        "recall": float(recall_score(yt, y_pred, zero_division=0)),
+        "precision": float(precision_score(yt, y_pred, zero_division=0)),
+        "f1_score": float(f1_score(yt, y_pred, zero_division=0)),
+        "roc_auc": float(roc_auc_score(yt, pr)),
+    }
+
+
+def compute_evolution_phases(
+    best_xgb,
+    stacking_model,
+    X_test,
+    y_test,
+    optimized_threshold: float,
+) -> list[dict]:
+    """Held-out test metrics after each phase (Phase 3 uses validation-tuned threshold)."""
+    y_test = np.asarray(y_test)
+    p1 = best_xgb.predict_proba(X_test)[:, 1]
+    p2 = stacking_model.predict_proba(X_test)[:, 1]
+    t = float(optimized_threshold)
+    return [
+        {
+            "phase": 1,
+            "label": "Phase 1: Tuned XGBoost",
+            **_metrics_at_threshold(y_test, p1, 0.5),
+        },
+        {
+            "phase": 2,
+            "label": "Phase 2: Stacking Ensemble",
+            **_metrics_at_threshold(y_test, p2, 0.5),
+        },
+        {
+            "phase": 3,
+            "label": "Phase 3: Threshold Optimization",
+            **_metrics_at_threshold(y_test, p2, t),
+        },
+    ]
+
+
+def save_evolution_artifacts(phases: list[dict], optimized_threshold: float) -> None:
+    payload = {
+        "generated": True,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "optimized_threshold": float(optimized_threshold),
+        "phases": phases,
+    }
+    with open(EVOLUTION_JSON_PATH, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+
+
+def save_evolution_plot(phases: list[dict], path: Optional[str] = None) -> None:
+    import matplotlib.pyplot as plt
+
+    out = path or EVOLUTION_PLOT_PATH
+    metric_keys = ["accuracy", "recall", "precision", "f1_score", "roc_auc"]
+    legend_labels = ["Accuracy", "Recall", "Precision", "F1-Score", "ROC-AUC"]
+    n_phases = len(phases)
+    x = np.arange(n_phases, dtype=float)
+    n_m = len(metric_keys)
+    width = min(0.8 / n_m, 0.14)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    try:
+        cmap = plt.colormaps["viridis"]
+    except (AttributeError, KeyError):
+        from matplotlib.cm import get_cmap
+
+        cmap = get_cmap("viridis")
+    colors = [cmap(0.12 + 0.72 * i / max(1, n_m - 1)) for i in range(n_m)]
+    for i, (key, lab, c) in enumerate(zip(metric_keys, legend_labels, colors)):
+        vals = [float(p[key]) for p in phases]
+        offset = (i - (n_m - 1) / 2) * width
+        ax.bar(
+            x + offset,
+            vals,
+            width,
+            label=lab,
+            color=c,
+            edgecolor="white",
+            linewidth=0.4,
+        )
+    ax.set_title("Evolution of Model Performance across Phases", fontsize=13, fontweight="bold")
+    ax.set_xlabel("Phase")
+    ax.set_ylabel("Score")
+    ax.set_xticks(x)
+    ax.set_xticklabels([p["label"] for p in phases], fontsize=9, rotation=12, ha="right")
+    ymax = max(float(p[k]) for p in phases for k in metric_keys)
+    ax.set_ylim(0.0, min(1.0, ymax * 1.12 + 0.02))
+    ax.yaxis.grid(True, linestyle="--", alpha=0.45)
+    ax.set_axisbelow(True)
+    ax.legend(loc="lower right", fontsize=8, framealpha=0.95)
+    fig.tight_layout()
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
 
 
 def predict(
@@ -274,6 +378,14 @@ if __name__ == "__main__":
     val_proba = stacking_model.predict_proba(X_val)[:, 1]
     best_threshold = find_best_threshold(y_val, val_proba)
     print(f"Validation-tuned probability threshold: {best_threshold:.4f}")
+
+    phase_rows = compute_evolution_phases(
+        best_model, stacking_model, X_test, y_test, best_threshold
+    )
+    save_evolution_artifacts(phase_rows, best_threshold)
+    save_evolution_plot(phase_rows)
+    print(f"Evolution metrics: {EVOLUTION_JSON_PATH}")
+    print(f"Evolution chart: {EVOLUTION_PLOT_PATH}")
 
     print("Refitting ensemble on full training fold (80% of data)...")
     stacking_model.fit(X_train, y_train)
